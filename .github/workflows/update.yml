@@ -1,0 +1,38 @@
+name: 일본 데이터 받기
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 8 * * 1-5"   # 평일 17:17 일본·한국 시간
+
+permissions:
+  contents: write
+
+jobs:
+  jp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 프로그램 설치
+        run: pip install -q pandas pyarrow xlrd yfinance requests
+      - name: 일본 시세 받기
+        run: python jp_update.py
+      - name: 릴리스에 올리기
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view data >/dev/null 2>&1 || gh release create data --title "data" --notes "자동 갱신 데이터 (시세만, 개인 정보 없음)"
+          gh release upload data out/* --clobber
+      - name: 기록 남기기
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add report.txt
+          git commit -m "갱신 기록" || echo "바뀐 것 없음"
+          git push
